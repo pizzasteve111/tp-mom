@@ -1,11 +1,14 @@
-Acá se tiene un struct broker en el que se almacenan todas las queues en un hash de la forma <nombre><cola>.
+Acá se genera un proceso donde vive un Broker.
 
-Tambien tiene un hash active_consumers donde para cada nombre de cola, tiene un arreglo con todas las conexiones que escuchan sobre cada una.
+El broker es quien instancia todas las colas usadas para el intercambio de mensajes.
 
-En working queue, el producer dice exactamente a que cola enviar el mensaje. Directamente desde el middleware "encola" el mensaje donde quiere. Solo uno de los N consumers de esa cola se queda con el mensaje, esto para tareas como procesar chunks o paralelismo, a cada uno le llega un task de los N que hay
+Broker conoce todos los middlewares y es el encargado de insertar/comunicar mensajes.
 
-En un exchange, el producer manda el mensaje a un topico y es un Exchange middleware quien va a enrutar y enviar el mensaje a todas las colas coincidentes.
+Los midd establecen conexion y pueden operar como consumers o producers. 
 
-cuando un middleware hace start_consuming, se establece conexion hacia el broker para una cola en particular.
-La cola va desencolando y lo manda por los sockets que ya tenía conectados en ese momento.
+Work Balancing: Nuestro broker no broadcastea los mensajes a todos los consumers, elige secuencialmente a un consumer y le da el mensaje a ese mismo.
+
+Work Queue: el producer le dice exactamente a qué cola comunicarse.
+
+Exchange: Hay topicos que agrupan ciertas colas, el producer pushea al topico sin saber la existencia de las colas.
 

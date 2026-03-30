@@ -3,6 +3,7 @@ package tests
 import (
 	"testing"
 
+	c "github.com/7574-sistemas-distribuidos/tp-mom/golang/internal/common"
 	f "github.com/7574-sistemas-distribuidos/tp-mom/golang/internal/factory"
 	m "github.com/7574-sistemas-distribuidos/tp-mom/golang/internal/middleware"
 	"github.com/stretchr/testify/assert"
@@ -204,7 +205,7 @@ func DoTestQueue(
 		consumers = append(consumers, middleware)
 		numConsumersByQueue[consumerOpts.QueueName] += 1
 
-		forwardToChannel := func(msg m.Message, ack func(), nack func()) {
+		forwardToChannel := func(msg c.Message, ack func(), nack func()) {
 			msgsFanIn <- msg.Body
 			ack()
 		}
@@ -217,7 +218,7 @@ func DoTestQueue(
 		//mando un el mensaje a la cola requerida
 		for queueName, messages := range producerOpts.MessagesByQueue {
 			for _, msg := range messages {
-				producersByQueue[queueName].Send(m.Message{Body: msg})
+				producersByQueue[queueName].Send(c.Message{Body: msg})
 			}
 		}
 	}

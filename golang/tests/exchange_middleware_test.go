@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	c "github.com/7574-sistemas-distribuidos/tp-mom/golang/internal/common"
 	f "github.com/7574-sistemas-distribuidos/tp-mom/golang/internal/factory"
 	m "github.com/7574-sistemas-distribuidos/tp-mom/golang/internal/middleware"
 	"github.com/stretchr/testify/assert"
@@ -203,7 +204,7 @@ func DoTestExchange(
 			numConsumersByKey[routingKey] += 1
 		}
 
-		forwardToChannel := func(msg m.Message, ack func(), nack func()) {
+		forwardToChannel := func(msg c.Message, ack func(), nack func()) {
 			msgsFanIn <- msg.Body
 			ack()
 		}
@@ -216,7 +217,7 @@ func DoTestExchange(
 		for routingKey, messages := range producerOpts.MessagesByRoutingKey {
 			WaitForExchangeBindings(EXCHANGE_NAME, routingKey, numConsumersByKey[routingKey], waitOpts)
 			for _, msg := range messages {
-				producerByKey[routingKey].Send(m.Message{Body: msg})
+				producerByKey[routingKey].Send(c.Message{Body: msg})
 			}
 		}
 	}
