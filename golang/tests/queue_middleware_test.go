@@ -12,10 +12,12 @@ func GetQueueMiddleware(queueName string) (m.Middleware, error) {
 	return f.CreateQueueMiddleware(queueName, GetConnectionDetails())
 }
 
+// lo que quiero mandar
 type QueueProdSettings struct {
 	MessagesByQueue map[string][]string
 }
 
+// como consumo
 type QueueConsSettings struct {
 	QueueName string
 }
@@ -136,6 +138,8 @@ func TestManyToMany(t *testing.T) {
 
 	// Arrange
 	producersDeclaration := []QueueProdSettings{
+		//indica para la cola TestManyToMany la cantidad de mensajes que se mandan.
+		//osea, hay 4 productores, cada uno manda a TestMany.. y le escribe el nombre de 5 provincias
 		{MessagesByQueue: map[string][]string{
 			"TestManyToMany": {"Buenos Aires", "Córdoba", "Rosario", "Mendoza", "San Miguel de Tucumán"},
 		}},
@@ -150,6 +154,7 @@ func TestManyToMany(t *testing.T) {
 		}},
 	}
 
+	//van a haber 4 consumers escuchando en la misma cola
 	consumersDeclaration := []QueueConsSettings{
 		{QueueName: "TestManyToMany"},
 		{QueueName: "TestManyToMany"},
@@ -178,18 +183,20 @@ func DoTestQueue(
 
 	// Arrange
 	msgsFanIn := make(chan string)
+	//lo que se quiere es que todos los productores/consumers hablen sobre la misma instancia de middleware
 	producersByQueue := make(map[string]m.Middleware)
 	numConsumersByQueue := make(map[string]int)
 	for _, producerOpts := range producersDeclaration {
 		for queueName := range producerOpts.MessagesByQueue {
 			middleware, err := GetQueueMiddleware(queueName)
 			assert.NoError(t, err)
+			//cada cola se dirige a la misma instancia de middleware
 			producersByQueue[queueName] = middleware
 
 			numConsumersByQueue[queueName] = 0
 		}
 	}
-
+	//cada consumidor tiene la misma instancia de la cola que quiere escuchar
 	consumers := make([]m.Middleware, 0)
 	for _, consumerOpts := range consumersDeclaration {
 		middleware, err := GetQueueMiddleware(consumerOpts.QueueName)
@@ -207,6 +214,7 @@ func DoTestQueue(
 
 	// Act
 	for _, producerOpts := range producersDeclaration {
+		//mando un el mensaje a la cola requerida
 		for queueName, messages := range producerOpts.MessagesByQueue {
 			for _, msg := range messages {
 				producersByQueue[queueName].Send(m.Message{Body: msg})
