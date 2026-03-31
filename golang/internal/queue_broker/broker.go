@@ -96,5 +96,5 @@ func (b *Broker) HandleMsg(queue_name string, msg c.Message) {
 }
 
 func SendMsg(conn net.Conn, msg c.Message) {
-	conn.Write([]byte(msg.Body + "\n"))
+	conn.Write([]byte("MSG" + msg.Body + "\n"))
 }
