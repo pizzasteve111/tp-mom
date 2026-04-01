@@ -12,49 +12,29 @@ type WorkQueueMiddleware struct {
 	QueueName  string
 	Connection *ampq.Connection
 	Channel    *ampq.Channel
+	tag        string
 }
 
 // desencola el fifo y se lo pasa a su callback. Si callback dev
 func (q *WorkQueueMiddleware) StartConsuming(callbackFunc func(msg c.Message, ack func(), nack func())) error {
-	///manda el msj SUB con su queue_name hacia el broker a través del conn
-	//una vez manda el msj, se queda en loop atento a los mensajes que le envía broker
-
-	//uso sync cond para evitar busy waits. Se queda dormido hasta que broker lo despierte
-	//por que hay mensaje nuevo
-
-	//ver que hago con el mensaje que recibo, lo printeo?
-	//llamo a la callback func y si me da ack no devuelvo error
+	tag := q.QueueName + "-consumer"
+	q.tag = tag
 
 	msgs, err := q.Channel.Consume(
 		q.QueueName,
-		"",
-		false,
-		false,
-		false,
-		false,
-		nil,
+		tag, // tag fijo y conocido
+		false, false, false, false, nil,
 	)
 	if err != nil {
 		return err
 	}
 
-	go func() {
-		for d := range msgs {
-
-			msg := c.Message{Body: string(d.Body)}
-
-			ack := func() {
-				d.Ack(false)
-			}
-
-			nack := func() {
-				d.Nack(false, true)
-			}
-
-			callbackFunc(msg, ack, nack)
-		}
-	}()
-
+	for d := range msgs {
+		msg := c.Message{Body: string(d.Body)}
+		ack := func() { d.Ack(false) }
+		nack := func() { d.Nack(false, true) }
+		callbackFunc(msg, ack, nack)
+	}
 	return nil
 }
 
@@ -66,7 +46,7 @@ func (q *WorkQueueMiddleware) StopConsuming() {
 	//otra es el de tener un bool consuming donde mientras sea true en startConsuming seguimos el loop.
 	//revisar problemas de concurrencia con eso
 
-	q.Channel.Cancel("", false)
+	q.Channel.Cancel(q.tag, false)
 
 }
 
