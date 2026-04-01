@@ -1,39 +1,17 @@
 package middleware
 
 import (
-	"bufio"
-	"fmt"
-	"net"
-	"strings"
-
 	c "github.com/7574-sistemas-distribuidos/tp-mom/golang/internal/common"
+	ampq "github.com/rabbitmq/amqp091-go"
 )
 
 // lo unico que conoce es el nombre de la queue que le interesa consumir y el stream para hablar con el broker
 type WorkQueueMiddleware struct {
 	//este mailbox es donde nos guardamos los msjs que vamos recibiendo
 
-	queue_name string
-	connection net.Conn
-}
-
-func CreateWorkQueueMidd(queue_name string, connectionSettings ConnSettings) *WorkQueueMiddleware {
-	//levanto mi work queue ligada a una queue que vive en el broker.
-	//establezco conexión en este metodo enviando el mensaje NEW.
-	//una vez tengo esa conn (connection atributo)
-	//lo que hago es reutilizarla en start consuming, send etc
-	addr := fmt.Sprintf("%s:%d", connectionSettings.Hostname, connectionSettings.Port)
-	conn, err := net.Dial("tcp", addr)
-	if err != nil {
-		return nil
-	}
-	//ahora creo el work queue middl
-	//esto lo retorna el factory
-	return &WorkQueueMiddleware{
-		queue_name: queue_name,
-		connection: conn,
-	}
-
+	QueueName  string
+	Connection *ampq.Connection
+	Channel    *ampq.Channel
 }
 
 // desencola el fifo y se lo pasa a su callback. Si callback dev
@@ -47,43 +25,30 @@ func (q *WorkQueueMiddleware) StartConsuming(callbackFunc func(msg c.Message, ac
 	//ver que hago con el mensaje que recibo, lo printeo?
 	//llamo a la callback func y si me da ack no devuelvo error
 
-	_, err := q.connection.Write([]byte("SUB " + q.queue_name + "\n"))
+	msgs, err := q.Channel.Consume(
+		q.QueueName,
+		"",
+		false,
+		false,
+		false,
+		false,
+		nil,
+	)
 	if err != nil {
 		return err
 	}
 
 	go func() {
-		reader := bufio.NewReader(q.connection)
+		for d := range msgs {
 
-		for {
-			line, err := reader.ReadString('\n')
-			if err != nil {
-				return
-			}
-
-			line = strings.TrimSpace(line)
-
-			// esperamos: "MSG contenido"
-			parts := strings.SplitN(line, " ", 2)
-			if len(parts) < 2 {
-				continue
-			}
-
-			cmd := parts[0]
-			body := parts[1]
-
-			if cmd != "MSG" {
-				continue
-			}
-
-			msg := c.Message{Body: body}
+			msg := c.Message{Body: string(d.Body)}
 
 			ack := func() {
-				q.connection.Write([]byte("ACK\n"))
+				d.Ack(false)
 			}
 
 			nack := func() {
-				q.connection.Write([]byte("NACK\n"))
+				d.Nack(false, true)
 			}
 
 			callbackFunc(msg, ack, nack)
@@ -101,7 +66,7 @@ func (q *WorkQueueMiddleware) StopConsuming() {
 	//otra es el de tener un bool consuming donde mientras sea true en startConsuming seguimos el loop.
 	//revisar problemas de concurrencia con eso
 
-	q.connection.Write([]byte("SCQ " + q.queue_name + "\n"))
+	q.Channel.Cancel("", false)
 
 }
 
@@ -109,17 +74,24 @@ func (q *WorkQueueMiddleware) Send(msg c.Message) error {
 	//sobre la conexión que ya tiene, manda el mensaje con el header PUB
 	//devuelve error si no había conexion
 
-	_, err := q.connection.Write([]byte(
-		"PUB " + q.queue_name + " " + msg.Body + "\n",
-	))
-	return err
+	return q.Channel.Publish(
+		"",
+		q.QueueName,
+		false,
+		false,
+		ampq.Publishing{
+			Body: []byte(msg.Body),
+		},
+	)
 }
 
 func (q *WorkQueueMiddleware) Close() error {
 	//Manda header CLS donde avisa que cierra conn y que entonces
 	//broker deje de tenerlo en cuenta.
 
-	q.connection.Write([]byte("CLS\n"))
-	return q.connection.Close()
+	if err := q.Channel.Close(); err != nil {
+		return err
+	}
+	return q.Connection.Close()
 
 }
