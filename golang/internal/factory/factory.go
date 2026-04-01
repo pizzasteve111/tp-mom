@@ -49,5 +49,15 @@ func connect(settings m.ConnSettings) (*a.Connection, *a.Channel, error) {
 	return conn, ch, nil
 }
 func CreateExchangeMiddleware(exchange string, keys []string, connectionSettings m.ConnSettings) (m.Middleware, error) {
-	return nil, nil
+	conn, ch, err := connect(connectionSettings)
+	if err != nil {
+		return nil, err
+	}
+
+	return &m.ExchangeMiddleware{
+		Exchange:   exchange,
+		Keys:       keys,
+		Connection: conn,
+		Channel:    ch,
+	}, nil
 }
