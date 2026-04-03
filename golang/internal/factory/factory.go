@@ -48,10 +48,50 @@ func connect(settings m.ConnSettings) (*a.Connection, *a.Channel, error) {
 
 	return conn, ch, nil
 }
-func CreateExchangeMiddleware(exchange string, keys []string, connectionSettings m.ConnSettings) (m.Middleware, error) {
-	conn, ch, err := connect(connectionSettings)
+
+// instancio mi exchange, creo una queue propia y la bindeo a las N keys
+func CreateExchangeMiddleware(exchange string, keys []string, settings m.ConnSettings) (m.Middleware, error) {
+	conn, ch, err := connect(settings)
 	if err != nil {
 		return nil, err
+	}
+
+	err = ch.ExchangeDeclare(
+		exchange,
+		"direct", // importante
+		false,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	q, err := ch.QueueDeclare(
+		"",
+		false,
+		true,
+		true,
+		false,
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, key := range keys {
+		err = ch.QueueBind(
+			q.Name,
+			key,
+			exchange,
+			false,
+			nil,
+		)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &m.ExchangeMiddleware{
@@ -59,5 +99,6 @@ func CreateExchangeMiddleware(exchange string, keys []string, connectionSettings
 		Keys:       keys,
 		Connection: conn,
 		Channel:    ch,
+		QueueName:  q.Name,
 	}, nil
 }
