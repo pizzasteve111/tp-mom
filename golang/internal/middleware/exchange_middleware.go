@@ -24,6 +24,11 @@ type ExchangeMiddleware struct {
 // el mensaje lo paso a la callback
 func (e *ExchangeMiddleware) StartConsuming(callbackFunc func(msg c.Message, ack func(), nack func())) error {
 	tag := ""
+	//error => si estaba desconectado el channel, que devuelva  ErrMessageMiddlewareDisconnected
+	//un if channel esta desconected, devolvemos el error
+	if e.Channel.IsClosed() {
+		return ErrMessageMiddlewareDisconnected
+	}
 	msgs, err := e.Channel.Consume(
 		e.QueueName,
 		tag,
@@ -34,7 +39,7 @@ func (e *ExchangeMiddleware) StartConsuming(callbackFunc func(msg c.Message, ack
 		nil,
 	)
 	if err != nil {
-		return err
+		return ErrMessageMiddlewareMessage
 	}
 	//ahora se puede identificar
 	e.consumerTag = tag
@@ -53,14 +58,23 @@ func (e *ExchangeMiddleware) StartConsuming(callbackFunc func(msg c.Message, ack
 	return nil
 }
 
-func (e *ExchangeMiddleware) StopConsuming() {
+func (e *ExchangeMiddleware) StopConsuming() error {
+	if e.Channel.IsClosed() {
+		return ErrMessageMiddlewareDisconnected
+	}
+	//if de si el channel ya esta desconectado ErrMessageMiddlewareDisconnected
 	e.Channel.Cancel(e.consumerTag, false)
+	return nil
 }
 
 // no mando mensaje a una queue, sino que pusheo a un exchange que luego lo
 // distribuye a las keys asociadas
 func (e *ExchangeMiddleware) Send(message c.Message) error {
+	if e.Channel.IsClosed() {
+		return ErrMessageMiddlewareDisconnected
+	}
 	for _, key := range e.Keys {
+		//si channel desconectado ErrMessageMiddlewareDisconnected
 		err := e.Channel.Publish(
 			e.Exchange,
 			key,
@@ -71,7 +85,7 @@ func (e *ExchangeMiddleware) Send(message c.Message) error {
 			},
 		)
 		if err != nil {
-			return err
+			return ErrMessageMiddlewareMessage
 		}
 	}
 	return nil
@@ -79,7 +93,7 @@ func (e *ExchangeMiddleware) Send(message c.Message) error {
 
 func (e *ExchangeMiddleware) Close() error {
 	if err := e.Channel.Close(); err != nil {
-		return err
+		return ErrMessageMiddlewareClose
 	}
 	return e.Connection.Close()
 }

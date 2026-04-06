@@ -42,9 +42,10 @@ func TestCanConnectExchange(t *testing.T) {
 // ----------------------------------------------------------------------------
 func TestOneToOneExchange(t *testing.T) {
 	// Arrange
+	const routeKey = "TestOneToOne"
 	producersDeclaration := []ExchangeProducerOpts{
 		{MessagesByRoutingKey: map[string][]string{
-			"TestOneToOne": {
+			routeKey: {
 				"Lionel Messi",
 				"Diego Maradona",
 				"Ángel Di María",
@@ -60,7 +61,7 @@ func TestOneToOneExchange(t *testing.T) {
 	}
 
 	consumersDeclaration := []ExchangeConsumerOpts{
-		{RoutingKeys: []string{"TestOneToOne"}},
+		{RoutingKeys: []string{routeKey}},
 	}
 
 	DoTestExchange(t, producersDeclaration, consumersDeclaration)
@@ -68,9 +69,10 @@ func TestOneToOneExchange(t *testing.T) {
 
 func TestManyToOneExchange(t *testing.T) {
 	// Arrange
+	const routeKey = "TestManyToOne_A"
 	producersDeclaration := []ExchangeProducerOpts{
 		{MessagesByRoutingKey: map[string][]string{
-			"TestManyToOne_A": {
+			routeKey: {
 				"Buenos Aires",
 				"Córdoba",
 				"Santa Fe",
@@ -82,7 +84,7 @@ func TestManyToOneExchange(t *testing.T) {
 			},
 		}},
 		{MessagesByRoutingKey: map[string][]string{
-			"TestManyToOne_A": {
+			routeKey: {
 				"Chaco",
 				"Corrientes",
 				"Santiago del Estero",
@@ -94,7 +96,7 @@ func TestManyToOneExchange(t *testing.T) {
 			},
 		}},
 		{MessagesByRoutingKey: map[string][]string{
-			"TestManyToOne_A": {
+			routeKey: {
 				"Chubut",
 				"San Luis",
 				"Catamarca",
@@ -107,7 +109,7 @@ func TestManyToOneExchange(t *testing.T) {
 	}
 
 	consumersDeclaration := []ExchangeConsumerOpts{
-		{RoutingKeys: []string{"TestManyToOne_A"}},
+		{RoutingKeys: []string{routeKey}},
 	}
 
 	DoTestExchange(t, producersDeclaration, consumersDeclaration)
@@ -118,9 +120,10 @@ func TestManyToOneExchange(t *testing.T) {
 // ----------------------------------------------------------------------------
 func TestOneToManyExchange(t *testing.T) {
 	// Arrange
+	const routeKey = "TestOneToMany"
 	producersDeclaration := []ExchangeProducerOpts{
 		{MessagesByRoutingKey: map[string][]string{
-			"TestOneToMany": {
+			routeKey: {
 				"Ferrari",
 				"Porsche",
 				"Lamborghini",
@@ -138,9 +141,9 @@ func TestOneToManyExchange(t *testing.T) {
 	}
 
 	consumersDeclaration := []ExchangeConsumerOpts{
-		{RoutingKeys: []string{"TestOneToOne"}},
-		{RoutingKeys: []string{"TestOneToOne"}},
-		{RoutingKeys: []string{"TestOneToOne"}},
+		{RoutingKeys: []string{routeKey}},
+		{RoutingKeys: []string{routeKey}},
+		{RoutingKeys: []string{routeKey}},
 	}
 
 	DoTestExchange(t, producersDeclaration, consumersDeclaration)
@@ -148,17 +151,19 @@ func TestOneToManyExchange(t *testing.T) {
 
 func TestManyToManyExchange(t *testing.T) {
 	// Arrange
+	const routeKeyA = "TestManyToMany_A"
+	const routeKeyB = "TestManyToMany_B"
 	producersDeclaration := []ExchangeProducerOpts{
 		{MessagesByRoutingKey: map[string][]string{
-			"TestManyToMany_A": {"Audi", "Ferrari", "Mclaren"},
-			"TestManyToMany_B": {"Boeing", "Cesna", "Embraer", "Airbus", "Piper"},
+			routeKeyA: {"Audi", "Ferrari", "Mclaren"},
+			routeKeyB: {"Boeing", "Cesna", "Embraer", "Airbus", "Piper"},
 		}},
 	}
 
 	consumersDeclaration := []ExchangeConsumerOpts{
-		{RoutingKeys: []string{"TestManyToMany_A"}},
-		{RoutingKeys: []string{"TestManyToMany_A", "TestManyToMany_B"}},
-		{RoutingKeys: []string{"TestManyToMany_B"}},
+		{RoutingKeys: []string{routeKeyA}},
+		{RoutingKeys: []string{routeKeyA, routeKeyB}},
+		{RoutingKeys: []string{routeKeyB}},
 	}
 
 	DoTestExchange(t, producersDeclaration, consumersDeclaration)
@@ -254,8 +259,9 @@ func DoTestExchange(
 	}
 
 	for _, consumerMiddleware := range consumers {
-		consumerMiddleware.StopConsuming()
+		stopErr := consumerMiddleware.StopConsuming()
 		closeErr := consumerMiddleware.Close()
+		assert.NoError(t, stopErr)
 		assert.NoError(t, closeErr)
 	}
 }

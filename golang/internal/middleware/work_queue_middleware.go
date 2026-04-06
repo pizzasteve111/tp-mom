@@ -19,6 +19,9 @@ type WorkQueueMiddleware struct {
 func (q *WorkQueueMiddleware) StartConsuming(callbackFunc func(msg c.Message, ack func(), nack func())) error {
 	tag := q.QueueName + "-consumer"
 	q.tag = tag
+	if q.Channel.IsClosed() {
+		return ErrMessageMiddlewareDisconnected
+	}
 
 	msgs, err := q.Channel.Consume(
 		q.QueueName,
@@ -38,22 +41,23 @@ func (q *WorkQueueMiddleware) StartConsuming(callbackFunc func(msg c.Message, ac
 	return nil
 }
 
-func (q *WorkQueueMiddleware) StopConsuming() {
+func (q *WorkQueueMiddleware) StopConsuming() error {
 	//Manda el mensaje SCQ y la queue name al broker, este lo va a descatalogar como consumidores
 	//broker responde con el mensaje SCQ, que se va a leer desde el start consuming y se va a cortar la escucha
-
-	//REVISAR: si alguien encola el mensaje SCQ, el middl va a pensar que dejaron de consumir
-	//otra es el de tener un bool consuming donde mientras sea true en startConsuming seguimos el loop.
-	//revisar problemas de concurrencia con eso
-
+	if q.Channel.IsClosed() {
+		return ErrMessageMiddlewareDisconnected
+	}
 	q.Channel.Cancel(q.tag, false)
+	return nil
 
 }
 
 func (q *WorkQueueMiddleware) Send(msg c.Message) error {
 	//sobre la conexión que ya tiene, manda el mensaje con el header PUB
 	//devuelve error si no había conexion
-
+	if q.Channel.IsClosed() {
+		return ErrMessageMiddlewareDisconnected
+	}
 	return q.Channel.Publish(
 		"",
 		q.QueueName,
@@ -68,7 +72,9 @@ func (q *WorkQueueMiddleware) Send(msg c.Message) error {
 func (q *WorkQueueMiddleware) Close() error {
 	//Manda header CLS donde avisa que cierra conn y que entonces
 	//broker deje de tenerlo en cuenta.
-
+	if q.Channel.IsClosed() {
+		return ErrMessageMiddlewareDisconnected
+	}
 	if err := q.Channel.Close(); err != nil {
 		return err
 	}
