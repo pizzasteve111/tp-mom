@@ -1,9 +1,16 @@
 package middleware
 
 import (
+	"fmt"
+	"sync/atomic"
+
 	c "github.com/7574-sistemas-distribuidos/tp-mom/golang/internal/common"
 	ampq "github.com/rabbitmq/amqp091-go"
 )
+
+// pongo un contador global para el caso de que varios consumers sean los mismos
+// así el tag no se repite
+var queueConsumerCounter uint64
 
 // lo unico que conoce es el nombre de la queue que le interesa consumir y el stream para hablar con el broker
 type WorkQueueMiddleware struct {
@@ -17,11 +24,13 @@ type WorkQueueMiddleware struct {
 
 // desencola el fifo y se lo pasa a su callback. Si callback dev
 func (q *WorkQueueMiddleware) StartConsuming(callbackFunc func(msg c.Message, ack func(), nack func())) error {
-	tag := q.QueueName + "-consumer"
-	q.tag = tag
 	if q.Channel.IsClosed() {
 		return ErrMessageMiddlewareDisconnected
 	}
+	//soluciono que no se repitan los tags entre consumers
+	id := atomic.AddUint64(&queueConsumerCounter, 1)
+	tag := fmt.Sprintf(q.QueueName, id)
+	q.tag = tag
 
 	msgs, err := q.Channel.Consume(
 		q.QueueName,
@@ -29,9 +38,9 @@ func (q *WorkQueueMiddleware) StartConsuming(callbackFunc func(msg c.Message, ac
 		false, false, false, false, nil,
 	)
 	if err != nil {
-		return err
+		return ErrMessageMiddlewareMessage
 	}
-
+	//esto es bloqueante por ser de la go routine
 	for d := range msgs {
 		msg := c.Message{Body: string(d.Body)}
 		ack := func() { d.Ack(false) }
@@ -47,7 +56,9 @@ func (q *WorkQueueMiddleware) StopConsuming() error {
 	if q.Channel.IsClosed() {
 		return ErrMessageMiddlewareDisconnected
 	}
-	q.Channel.Cancel(q.tag, false)
+	if err := q.Channel.Cancel(q.tag, false); err != nil {
+		return ErrMessageMiddlewareDisconnected
+	}
 	return nil
 
 }
@@ -58,7 +69,7 @@ func (q *WorkQueueMiddleware) Send(msg c.Message) error {
 	if q.Channel.IsClosed() {
 		return ErrMessageMiddlewareDisconnected
 	}
-	return q.Channel.Publish(
+	if err := q.Channel.Publish(
 		"",
 		q.QueueName,
 		false,
@@ -66,7 +77,10 @@ func (q *WorkQueueMiddleware) Send(msg c.Message) error {
 		ampq.Publishing{
 			Body: []byte(msg.Body),
 		},
-	)
+	); err != nil {
+		return ErrMessageMiddlewareMessage
+	}
+	return nil
 }
 
 func (q *WorkQueueMiddleware) Close() error {

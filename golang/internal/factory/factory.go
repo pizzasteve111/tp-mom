@@ -99,6 +99,5 @@ func CreateExchangeMiddleware(exchange string, keys []string, settings m.ConnSet
 		Keys:       keys,
 		Connection: conn,
 		Channel:    ch,
-		QueueName:  q.Name,
 	}, nil
 }

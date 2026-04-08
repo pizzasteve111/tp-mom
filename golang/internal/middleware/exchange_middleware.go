@@ -1,9 +1,14 @@
 package middleware
 
 import (
+	"fmt"
+	"sync/atomic"
+
 	c "github.com/7574-sistemas-distribuidos/tp-mom/golang/internal/common"
 	a "github.com/rabbitmq/amqp091-go"
 )
+
+var exchangeConsumerCounter uint64
 
 // lo unico que conoce es el nombre de la queue que le interesa consumir y el stream para hablar con el broker
 type ExchangeMiddleware struct {
@@ -12,7 +17,7 @@ type ExchangeMiddleware struct {
 	//keys sería el arreglo de nombres de colas asociadas
 	Keys []string
 	//el consumer crea su propia queue donde recibe los mensajes de sus bindings
-	QueueName  string
+	queueName  string
 	Connection *a.Connection
 	Channel    *a.Channel
 	//es para identificar al consumer
@@ -23,38 +28,51 @@ type ExchangeMiddleware struct {
 // empiezo a escuchar lo que enrutea el exchange hacia mi queue
 // el mensaje lo paso a la callback
 func (e *ExchangeMiddleware) StartConsuming(callbackFunc func(msg c.Message, ack func(), nack func())) error {
-	tag := ""
 	//error => si estaba desconectado el channel, que devuelva  ErrMessageMiddlewareDisconnected
 	//un if channel esta desconected, devolvemos el error
 	if e.Channel.IsClosed() {
 		return ErrMessageMiddlewareDisconnected
 	}
-	msgs, err := e.Channel.Consume(
-		e.QueueName,
-		tag,
+	//genero queue si no la había, es propia del struct y no persiste luego de consumirla
+	q, err := e.Channel.QueueDeclare(
+		"",
 		false,
-		false,
-		false,
+		true,
+		true,
 		false,
 		nil,
 	)
 	if err != nil {
 		return ErrMessageMiddlewareMessage
 	}
-	//ahora se puede identificar
-	e.consumerTag = tag
-
-	go func() {
-		for d := range msgs {
-			msg := c.Message{Body: string(d.Body)}
-
-			ack := func() { d.Ack(false) }
-			nack := func() { d.Nack(false, true) }
-
-			callbackFunc(msg, ack, nack)
+	e.queueName = q.Name
+	for _, key := range e.Keys {
+		if err := e.Channel.QueueBind(e.queueName, key, e.Exchange, false, nil); err != nil {
+			return ErrMessageMiddlewareMessage
 		}
-	}()
+	}
 
+	id := atomic.AddUint64(&exchangeConsumerCounter, 1)
+	e.consumerTag = fmt.Sprintf(e.Exchange, id)
+	//ahora se puede identificar
+
+	msgs, err := e.Channel.Consume(
+		e.queueName,
+		e.consumerTag,
+		false, false, false, false, nil,
+	)
+	if err != nil {
+		return ErrMessageMiddlewareMessage
+	}
+
+	// bloqueante — el caller usa `go middleware.StartConsuming(...)`
+	for d := range msgs {
+		delivery := d
+		msg := c.Message{Body: string(delivery.Body)}
+		ack := func() { delivery.Ack(false) }
+		nack := func() { delivery.Nack(false, true) }
+		callbackFunc(msg, ack, nack)
+	}
 	return nil
 }
 
@@ -63,7 +81,9 @@ func (e *ExchangeMiddleware) StopConsuming() error {
 		return ErrMessageMiddlewareDisconnected
 	}
 	//if de si el channel ya esta desconectado ErrMessageMiddlewareDisconnected
-	e.Channel.Cancel(e.consumerTag, false)
+	if err := e.Channel.Cancel(e.consumerTag, false); err != nil {
+		return ErrMessageMiddlewareDisconnected
+	}
 	return nil
 }
 
@@ -92,8 +112,14 @@ func (e *ExchangeMiddleware) Send(message c.Message) error {
 }
 
 func (e *ExchangeMiddleware) Close() error {
+	if e.Channel.IsClosed() {
+		return ErrMessageMiddlewareClose
+	}
 	if err := e.Channel.Close(); err != nil {
 		return ErrMessageMiddlewareClose
 	}
-	return e.Connection.Close()
+	if err := e.Connection.Close(); err != nil {
+		return ErrMessageMiddlewareClose
+	}
+	return nil
 }

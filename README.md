@@ -1,3 +1,8 @@
+# Observaciones
+
+Por lo que entendí del funcionamienteo de Rabbit, es posible que mi implementeación caiga en starvation en un caso borde. Tengo entendido que se mandan los acks una vez se proceso todo un flujo de mensajes. Si se mandan mas mensajes de los que se pueden procesar
+
+
 # Trabajo Práctico - Middlewares Orientados a Mensajes
 
 Los middlewares orientados a mensajes (MOMs) son un recurso importante para el control de la complejidad en los sistemas distribuídos, puesto que permiten a las distintas partes del sistema comunicarse abstrayéndose de problemas como los cambios de ubicación, fallos, performance y escalabilidad.
