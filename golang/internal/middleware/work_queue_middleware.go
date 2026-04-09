@@ -29,7 +29,7 @@ func (q *WorkQueueMiddleware) StartConsuming(callbackFunc func(msg c.Message, ac
 	}
 	//soluciono que no se repitan los tags entre consumers
 	id := atomic.AddUint64(&queueConsumerCounter, 1)
-	tag := fmt.Sprintf(q.QueueName, id)
+	tag := fmt.Sprintf("%s-consumer-%d", q.QueueName, id)
 	q.tag = tag
 
 	msgs, err := q.Channel.Consume(

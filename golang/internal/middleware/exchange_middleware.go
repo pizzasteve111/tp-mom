@@ -53,7 +53,7 @@ func (e *ExchangeMiddleware) StartConsuming(callbackFunc func(msg c.Message, ack
 	}
 
 	id := atomic.AddUint64(&exchangeConsumerCounter, 1)
-	e.consumerTag = fmt.Sprintf(e.Exchange, id)
+	e.consumerTag = fmt.Sprintf("%s-consumer-%d", e.Exchange, id)
 	//ahora se puede identificar
 
 	msgs, err := e.Channel.Consume(
