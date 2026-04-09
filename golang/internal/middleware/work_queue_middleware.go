@@ -41,6 +41,7 @@ func (q *WorkQueueMiddleware) StartConsuming(callbackFunc func(msg c.Message, ac
 		return ErrMessageMiddlewareMessage
 	}
 	//esto es bloqueante por ser de la go routine
+	//vigilar el caso en el que hago stop consume antes de leer msgs
 	for d := range msgs {
 		msg := c.Message{Body: string(d.Body)}
 		ack := func() { d.Ack(false) }

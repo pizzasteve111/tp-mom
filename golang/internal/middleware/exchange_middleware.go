@@ -76,7 +76,7 @@ func (e *ExchangeMiddleware) Send(message c.Message) error {
 		return ErrMessageMiddlewareDisconnected
 	}
 	for _, key := range e.Keys {
-		//si channel desconectado ErrMessageMiddlewareDisconnected
+		//si falla la key N, no se sabe cuantas de las 1..N-1 se enviaron bien
 		err := e.Channel.Publish(
 			e.Exchange,
 			key,

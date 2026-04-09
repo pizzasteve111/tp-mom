@@ -2,6 +2,10 @@
 
 Por lo que entendí del funcionamienteo de Rabbit, es posible que mi implementeación caiga en starvation en un caso borde. Tengo entendido que se mandan los acks una vez se proceso todo un flujo de mensajes. Si se mandan mas mensajes de los que se pueden procesar
 
+Asumo que el middleware no busca trabajar como Producer/Consumer al mismo tiempo.
+Es decir, que no quiera consumir mensajes y leerlos en ese momento. En caso de que se quiera ambos roles al mismo tiempo, debería dividir mis canales de comunicación entre uno para publicar y otro para leer.
+
+Por conveniencia, exchange devuelve error si falla la publicación a una de las keys, pero no devuelve mas detalles de cual key falló.
 
 # Trabajo Práctico - Middlewares Orientados a Mensajes
 

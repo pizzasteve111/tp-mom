@@ -15,9 +15,10 @@ func CreateQueueMiddleware(queueName string, connectionSettings m.ConnSettings) 
 	}
 
 	// declarar la cola (si no existe la crea)
+	//hago que la cola sea persistente ante restarts
 	_, err = ch.QueueDeclare(
 		queueName,
-		false,
+		true,
 		false,
 		false,
 		false,
@@ -26,7 +27,12 @@ func CreateQueueMiddleware(queueName string, connectionSettings m.ConnSettings) 
 	if err != nil {
 		return nil, err
 	}
-
+	//pongo prefetch en 1, aseguro que no haya mas mensajes de los que puedo procesar
+	if err = ch.Qos(1, 0, false); err != nil {
+		ch.Close()
+		conn.Close()
+		return nil, err
+	}
 	return &m.WorkQueueMiddleware{
 		QueueName:  queueName,
 		Connection: conn,
@@ -58,7 +64,7 @@ func CreateExchangeMiddleware(exchange string, keys []string, settings m.ConnSet
 
 	err = ch.ExchangeDeclare(
 		exchange,
-		"direct", // importante
+		"direct",
 		false,
 		false,
 		false,
@@ -80,7 +86,11 @@ func CreateExchangeMiddleware(exchange string, keys []string, settings m.ConnSet
 	if err != nil {
 		return nil, err
 	}
-
+	if err = ch.Qos(1, 0, false); err != nil {
+		ch.Close()
+		conn.Close()
+		return nil, err
+	}
 	for _, key := range keys {
 		err = ch.QueueBind(
 			q.Name,
