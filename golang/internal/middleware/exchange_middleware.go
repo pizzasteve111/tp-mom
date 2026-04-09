@@ -17,7 +17,7 @@ type ExchangeMiddleware struct {
 	//keys sería el arreglo de nombres de colas asociadas
 	Keys []string
 	//el consumer crea su propia queue donde recibe los mensajes de sus bindings
-	queueName  string
+	QueueName  string
 	Connection *a.Connection
 	Channel    *a.Channel
 	//es para identificar al consumer
@@ -33,31 +33,13 @@ func (e *ExchangeMiddleware) StartConsuming(callbackFunc func(msg c.Message, ack
 	if e.Channel.IsClosed() {
 		return ErrMessageMiddlewareDisconnected
 	}
-	//genero queue si no la había, es propia del struct y no persiste luego de consumirla
-	q, err := e.Channel.QueueDeclare(
-		"",
-		false,
-		true,
-		true,
-		false,
-		nil,
-	)
-	if err != nil {
-		return ErrMessageMiddlewareMessage
-	}
-	e.queueName = q.Name
-	for _, key := range e.Keys {
-		if err := e.Channel.QueueBind(e.queueName, key, e.Exchange, false, nil); err != nil {
-			return ErrMessageMiddlewareMessage
-		}
-	}
 
 	id := atomic.AddUint64(&exchangeConsumerCounter, 1)
 	e.consumerTag = fmt.Sprintf("%s-consumer-%d", e.Exchange, id)
 	//ahora se puede identificar
 
 	msgs, err := e.Channel.Consume(
-		e.queueName,
+		e.QueueName,
 		e.consumerTag,
 		false, false, false, false, nil,
 	)
